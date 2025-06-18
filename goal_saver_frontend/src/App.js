@@ -143,7 +143,8 @@ function useReminderNotifications(goals, preferences) {
  * Uses local heuristics to suggest an adaptive savings plan and categorizes expenses.
  * NOTE: In a real app, AI/ML API call would be made here for richer personalization.
  */
-function SmartPlanningPanel({ goals, colors = COLORS }) {
+function SmartPlanningPanel({ goals, colors = COLORS, persona = "Balanced" }) {
+  // Accept persona prop, fallback to "Balanced" if missing (modular per-context)
   const [income, setIncome] = useState("");
   const [expenses, setExpenses] = useState([{ category: "Rent", value: "" }]);
   const [lifestyle, setLifestyle] = useState("Frugal");
@@ -154,6 +155,31 @@ function SmartPlanningPanel({ goals, colors = COLORS }) {
   const expenseCategories = [
     "Rent/Housing", "Food & Groceries", "Transport", "Utilities", "Shopping", "Entertainment", "Health", "Other"
   ];
+  // Select default multipliers based on persona
+  // Persona influences savings behaviour:
+  // "Disciplined" saves more, "Flexible" less, "Adventurous" very little, etc.
+  function personaToMultiplier(persona) {
+    switch(persona) {
+      case "Disciplined":
+      case "Habit builder":
+        return 0.18;
+      case "Visualizer":
+      case "Planned":
+        return 0.14;
+      case "Flexible": // flexible saver
+        return 0.10;
+      case "Adventurous":
+      case "Reward-seeker":
+        return 0.07;
+      case "Quick-Achiever":
+        return 0.12;
+      case "Visionary":
+        return 0.16;
+      default:
+        return 0.12; // fallback "Balanced"
+    }
+  }
+
   const lifestyleOptions = [
     { label: "Frugal", multiplier: 0.15 },
     { label: "Balanced", multiplier: 0.12 },
@@ -194,12 +220,18 @@ function SmartPlanningPanel({ goals, colors = COLORS }) {
       setSuggestion({ error: "Please enter a valid income amount." });
       return;
     }
-    // Select lifestyle & urgency multipliers
+    // Persona-based multiplier for savings: replaces or adjusts lifestyle
+    const personaMultiplier = personaToMultiplier(persona);
+
     const lifestyleObj = lifestyleOptions.find(l => l.label === lifestyle) || lifestyleOptions[0];
     const urgencyObj = urgencyLevels.find(u => u.label === urgency) || urgencyLevels[2];
+
+    // Modulate lifestyle multiplier by persona influence (average)
+    const avgMultiplier = (personaMultiplier + lifestyleObj.multiplier) / 2;
+
     // Local "AI" logic: use multipliers and urgency to suggest savings percent of free income after expenses
     const saveBase = Math.max(0, inc - totalExpenses);
-    let proposedSaving = Math.round(saveBase * lifestyleObj.multiplier * urgencyObj.multiplier);
+    let proposedSaving = Math.round(saveBase * avgMultiplier * urgencyObj.multiplier);
     if (proposedSaving < 0) proposedSaving = 0;
 
     // Categorize spending for feedback
@@ -219,10 +251,42 @@ function SmartPlanningPanel({ goals, colors = COLORS }) {
       notes.push("Little or no savings are possible with the current inputs — review expenses.");
     }
 
+    // Persona-based dynamic notes
+    if (proposedSaving > 0) {
+      // Short, actionable advice based on persona
+      switch(persona) {
+        case "Disciplined":
+          notes.push("Automate your savings every month—set and forget for best results!");
+          break;
+        case "Flexible":
+          notes.push("Try to move a fixed amount to savings right after each expense, not just what remains.");
+          break;
+        case "Visualizer":
+          notes.push("Track your progress visually—set up charts or check-ins to keep you motivated.");
+          break;
+        case "Habit builder":
+          notes.push("Build a streak: saving a little every week is better than skipping!");
+          break;
+        case "Reward-seeker":
+          notes.push("Set fun milestones—plan small treats when you hit savings goals.");
+          break;
+        case "Adventurous":
+          notes.push("Try saving for a fun experience; even a small start goes a long way!");
+          break;
+        case "Quick-Achiever":
+          notes.push("Focus on your next-shortest-term goal and see if you can beat your deadline!");
+          break;
+        case "Visionary":
+          notes.push("Remember: big dreams need steady steps—plan for the long run.");
+          break;
+        default:
+          notes.push("Staying consistent and reviewing your plan monthly will help you reach your savings goals!");
+      }
+    }
+
     // Goal urgency suggestion
     let urgentGoal = null;
     if (goals && goals.length > 0) {
-      const now = new Date();
       urgentGoal = goals
         .map(g => ({
           ...g,
@@ -240,12 +304,10 @@ function SmartPlanningPanel({ goals, colors = COLORS }) {
       notes,
       urgentGoal,
       lifestyle: lifestyleObj.label,
-      urgency: urgencyObj.label
+      urgency: urgencyObj.label,
+      persona,
     });
     // NOTE: In production, this is where an API call for AI-powered recommendation would occur.
-    // Example:
-    // fetch('/api/ai-smart-planner', {method:"POST",body:JSON.stringify({ income, expenses, lifestyle, urgency, goals })})
-    //   .then(resp => resp.json()).then(setSuggestion);
   }
 
   return (
@@ -259,10 +321,13 @@ function SmartPlanningPanel({ goals, colors = COLORS }) {
         maxWidth: 600,
       }}>
       <div style={{ fontWeight: 700, color: colors.primary, marginBottom: 5, fontSize: 20 }}>
-        🧠 AI-Powered Smart Planning
+        🧠 AI-Powered Smart Planning{" "}
+        <span style={{fontWeight:500, fontSize:15, color: "#4CAF50", marginLeft:6}}>
+          {persona && <>({persona} profile)</>}
+        </span>
       </div>
       <div style={{ color: "#4a556b", fontSize: 15, marginBottom: 13, lineHeight: 1.4 }}>
-        Get a custom savings plan suggestion based on your finances and lifestyle.
+        Get a custom savings plan suggestion based on your finances and personality.
         <span style={{ color: "#787f97" }}><br />(No data leaves your device. Real AI can be connected in production.)</span>
       </div>
       <form onSubmit={handlePlanSuggestion}>
@@ -365,7 +430,7 @@ function SmartPlanningPanel({ goals, colors = COLORS }) {
                 <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 17 }}>
                   {`Suggested monthly savings: ₹${suggestion.proposedSaving}`}
                   <span style={{ color: "#295bb1", fontWeight: 600, fontSize: 15, marginLeft: 7 }}>
-                    ({suggestion.lifestyle}, Goal Urgency: {suggestion.urgency})
+                    ({suggestion.lifestyle}, Goal Urgency: {suggestion.urgency}, {persona ?? "profile"})
                   </span>
                 </div>
                 <div>
@@ -374,7 +439,6 @@ function SmartPlanningPanel({ goals, colors = COLORS }) {
                     : (
                       <span>
                         You can save about <b>{Math.round((suggestion.proposedSaving / Math.max(1, suggestion.income)) * 100)}%</b> of your income monthly.
-                        {/* If goals are present, mention the most urgent goal */}
                         {suggestion.urgentGoal &&
                           <span> Your most urgent goal: <b>{suggestion.urgentGoal.name}</b> (Deadline: {suggestion.urgentGoal.deadline})</span>
                         }
@@ -390,7 +454,6 @@ function SmartPlanningPanel({ goals, colors = COLORS }) {
                 }
                 <div style={{ marginTop: 4, color: "#87898f", fontSize: 13 }}>
                   <span>
-                    {/* Annotation about real AI integration */}
                     <i>{`(In real use, this step can call an AI/ML service/api for deeper analysis and smart suggestions per user profile.)`}</i>
                   </span>
                 </div>
@@ -415,8 +478,8 @@ const COLORS = {
 };
 
 // PUBLIC_INTERFACE
-function GoalSaverDashboard() {
-  // Core hooks
+function GoalSaverDashboard({ persona }) {
+  // Accepts persona to bring in personalization to dashboard and its children.
   const {
     goals,
     createGoal,
@@ -483,11 +546,13 @@ function GoalSaverDashboard() {
     // eslint-disable-next-line
   }, [goals]);
 
+  // Modular Savings Tips - persona passed down
   return (
     <div style={{ background: COLORS.bg, minHeight: "100vh" }}>
       <Navbar />
       <div style={{ maxWidth: 1050, margin: "auto", padding: "32px 0 48px" }}>
-        <SmartPlanningPanel goals={goals} colors={COLORS} />
+        <SmartPlanningPanel goals={goals} colors={COLORS} persona={persona} />
+        <SavingsTipsPanel persona={persona} colors={COLORS} />
         <h2
           style={{
             color: COLORS.primary,
@@ -1139,6 +1204,155 @@ function Modal({ children, onClose }) {
           </button>
         </div>
         {children}
+      </div>
+    </div>
+  );
+}
+
+// SavingsTipsPanel
+function SavingsTipsPanel({ persona, colors = COLORS }) {
+  // Modular. Displayed PROMINENTLY after SmartPlanningPanel.
+  // Pick top relevant 3-4 tips per persona, else show fallback general tips.
+
+  // Persona-specific and general tip pool:
+  const tipsByPersona = {
+    Disciplined: [
+      "Consider setting up a recurring monthly auto-transfer to your savings.",
+      "Review your savings plan every quarter for even more progress.",
+      "Share your savings achievements to inspire others!"
+    ],
+    Flexible: [
+      "Try weekly mini-savings challenges to keep the process fun.",
+      "Start with a small fixed amount—consistency is key.",
+      "Track expenses for one week to find easy areas to cut back."
+    ],
+    Visualizer: [
+      "Use charts, trackers, or reward visuals to see your progress clearly.",
+      "Set up visual reminders of your goals in your space.",
+      "Watching your progress grow can keep you extra motivated!"
+    ],
+    "Habit builder": [
+      "Turn saving into a habit—set a fixed weekday or date for transfers.",
+      "Pair saving with another routine, like after breakfast.",
+      "Missed a target? Just start again—habit is built by frequency!"
+    ],
+    "Reward-seeker": [
+      "Reward yourself with a small treat after each milestone.",
+      "Gamify your progress to make saving feel more like an accomplishment.",
+      "Plan fun, low-cost experiences as rewards, not just shopping."
+    ],
+    Adventurous: [
+      "Save for something experience-based—concert, trip, or a new skill session.",
+      "Round up your purchases to the nearest ₹50/₹100 and save the difference.",
+      "Try one week spending freeze on non-essentials!"
+    ],
+    "Quick-Achiever": [
+      "Set shorter, specific deadlines to keep your momentum.",
+      "Break your goal into mini-goals for faster wins.",
+      "Celebrate when you reach each mini-milestone!"
+    ],
+    Visionary: [
+      "Keep long-term goals visible—write them out or use a vision board.",
+      "Automate investments, not just savings.",
+      "Every small step today powers your big dreams tomorrow."
+    ],
+    Planned: [
+      "Build a budget for your month, including regular savings.",
+      "Plan your shopping and outings in advance to minimize impulse buys.",
+      "Review progress to stay on track—adjust plans when needed."
+    ],
+    Balanced: [
+      "Keep a healthy split: spend, save, and enjoy in moderation.",
+      "Revisit your savings goals monthly.",
+      "A steady savings pace leads to success."
+    ],
+    default: [
+      "Pay yourself first—move money to savings before spending.",
+      "Track your spending—it’s the #1 way to find extra savings.",
+      "Celebrate milestones to boost your motivation!",
+      "Review your goals monthly and adjust as needed."
+    ]
+  };
+  // Map alternative persona tags for coverage
+  const altPersonas = {
+    "Visualizer": "Visualizer",
+    "Habit builder": "Habit builder",
+    "Reward-seeker": "Reward-seeker",
+    "Quick-Achiever": "Quick-Achiever",
+    "Adventurous": "Adventurous",
+    "Planned": "Planned",
+    "Disciplined": "Disciplined",
+    "Flexible": "Flexible",
+    "Visionary": "Visionary",
+    "Balanced": "Balanced"
+  };
+
+  // Get persona-matched tips or fallback
+  let matched = tipsByPersona[persona];
+  if (!matched) {
+    if (altPersonas[persona]) matched = tipsByPersona[altPersonas[persona]];
+    else matched = tipsByPersona.default;
+  }
+
+  // Shuffle for dynamism
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  const tips = shuffle(matched).slice(0, 3);
+
+  return (
+    <div
+      style={{
+        margin: "27px 0 18px",
+        background: colors.accent,
+        borderRadius: 14,
+        padding: "20.5px 32px 14.5px 32px",
+        boxShadow: "0 2px 15px 0 #e1e7fc55",
+        maxWidth: 720,
+        color: "#fff",
+        fontSize: 16,
+        marginLeft: "auto",
+        marginRight: "auto",
+        position: "relative",
+      }}
+      aria-label="Savings Tips"
+    >
+      <div style={{
+        fontWeight: 700,
+        color: "#fffbe0",
+        marginBottom: 4,
+        fontSize: 20,
+        letterSpacing: 0.09,
+        textShadow: "0 1px 10px #0001"
+      }}>
+        💡 Savings Tips{persona ? ` for ${persona}` : ""}
+      </div>
+      <ul style={{ margin: 0, marginTop: 5, padding: "0 0 0 20px" }}>
+        {tips.map((tip, idx) => (
+          <li key={idx} style={{
+            marginBottom: 7,
+            fontSize: 16,
+            lineHeight: 1.33,
+            color: "#fff"
+          }}>
+            {tip}
+          </li>
+        ))}
+      </ul>
+      <div
+        style={{
+          fontSize: 13,
+          color: "#ddefff",
+          marginTop: 6,
+        }}>
+        {persona
+          ? "Tips are personalized for your savings style."
+          : "Below are proven tips for effective saving habits."}
       </div>
     </div>
   );

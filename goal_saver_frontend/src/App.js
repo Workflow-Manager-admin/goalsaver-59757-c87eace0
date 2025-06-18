@@ -1232,9 +1232,138 @@ function UserPreferencesPanel({ preferences, onUpdate, colors }) {
 
 // ---- END COMPONENTS ----
 
+/** Simple modular onboarding flow state **/
+function SignUpScreen({ onComplete }) {
+  // Minimalist sign up simulation for demo
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (name && email) {
+      setSubmitted(true);
+      setTimeout(() => onComplete({ name, email }), 700);
+    }
+  }
+  return (
+    <div className="app" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#ffffffaa", borderRadius: 12, padding: "38px 32px 23px", boxShadow: "0 8px 44px #d7e8ff3e", maxWidth: 380, width: "91%" }}>
+        <div className="logo" style={{ fontSize: 28, fontWeight: 700, color: "#4CAF50", marginBottom: 12 }}>
+          <span role="img" aria-label="goal">🏆</span>
+          GoalSaver
+        </div>
+        <div style={{ fontSize: 21, fontWeight: 600, marginBottom: 8 }}>Welcome! Sign Up</div>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+          <input
+            style={{ fontSize: 16, padding: "10px 7px", borderRadius: 4, marginBottom: 4, border: "1.5px solid #ddd" }}
+            placeholder="Your Name" value={name} onChange={e => setName(e.target.value)} maxLength={25} required />
+          <input
+            style={{ fontSize: 16, padding: "10px 7px", borderRadius: 4, marginBottom: 6, border: "1.5px solid #ddd" }}
+            type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
+          <button className="btn btn-large" style={{ background: "#4CAF50", color: "#fff", fontWeight: 600, fontSize: 18 }} disabled={submitted}>
+            {submitted ? "Signing up..." : "Sign Up"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PersonalityQuizScreen({ onComplete }) {
+  // Minimal goal personality quiz simulation for demo
+  const [stage, setStage] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const questions = [
+    {
+      q: "How do you usually save money?",
+      a: [
+        { v: "Automatic every month", t: "Disciplined" },
+        { v: "Whatever's left after expenses", t: "Flexible" },
+        { v: "I rarely save", t: "Adventurous" }
+      ]
+    },
+    {
+      q: "Pick your savings goal horizon:",
+      a: [
+        { v: "Short-term (gadgets, events)", t: "Quick-Achiever" },
+        { v: "Medium (trips, courses)", t: "Planned" },
+        { v: "Long-term (major purchases)", t: "Visionary" }
+      ]
+    },
+    {
+      q: "What motivates you most?",
+      a: [
+        { v: "Visual progress/tracking", t: "Visualizer" },
+        { v: "Reminders and nudges", t: "Habit builder" },
+        { v: "Celebrating milestones", t: "Reward-seeker" }
+      ]
+    }
+  ];
+  function handleSelect(val) {
+    setAnswers(a => ({ ...a, [stage]: val }));
+    if (stage < questions.length - 1) {
+      setTimeout(() => setStage(stage + 1), 400);
+    } else {
+      setTimeout(() => onComplete(answers), 800);
+    }
+  }
+  return (
+    <div className="app" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#ffffff", borderRadius: 13, padding: "34px 26px 25px", boxShadow: "0 8px 44px #bbcfd82e", minWidth: 330, width: "91%", maxWidth: 400 }}>
+        <div style={{ fontWeight: 700, color: "#2196F3", marginBottom: 5, fontSize: 22 }}>
+          GoalSaver Personality Quiz
+        </div>
+        <div style={{ fontSize: 15, color: "#555", marginBottom: 3 }}>Step {stage + 1} of {questions.length}</div>
+        <div style={{ fontSize: 18, fontWeight: 600, margin: "13px 0 15px" }}>
+          {questions[stage].q}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+          {questions[stage].a.map(choice => (
+            <button
+              key={choice.v}
+              className="btn"
+              style={{
+                fontSize: 16,
+                background: "#4CAF50",
+                color: "#fff",
+                marginBottom: 4,
+                fontWeight: 600,
+                borderRadius: 7
+              }}
+              onClick={() => handleSelect(choice.t)}
+              disabled={answers[stage] !== undefined}
+            >
+              {choice.v}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // PUBLIC_INTERFACE
 function App() {
-  // Wraps the new dashboard as main content
+  // Global state for onboarding flow: steps - SignUp -> Quiz -> Dashboard
+  const [onboarding, setOnboarding] = useState(() => {
+    // Can use localStorage, but demo will not persist sessions
+    return { step: "signup", user: null, quiz: null };
+  });
+
+  function handleSignUp(userProfile) {
+    setOnboarding({ step: "quiz", user: userProfile, quiz: null });
+  }
+  function handleQuizComplete(quizAnswers) {
+    setOnboarding(prev => ({ ...prev, step: "dashboard", quiz: quizAnswers }));
+  }
+
+  if (onboarding.step === "signup") {
+    return <SignUpScreen onComplete={handleSignUp} />;
+  }
+  if (onboarding.step === "quiz") {
+    return <PersonalityQuizScreen onComplete={handleQuizComplete} />;
+  }
+  // step === "dashboard"
   return <GoalSaverDashboard />;
 }
 

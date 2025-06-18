@@ -22,4 +22,14 @@ modules by path ./.ve/ 15.1 KiB
     ./.ve/EditorOverlay.css 2.25 KiB [built] [code generated]
     ./node_modules/css-loader/dist/cjs.js!./.ve/EditorOverlay.css 697 bytes [built] [code generated]
   ./.ve/EditorOverlay.jsx 1.58 KiB [built] [code generated]
-webpack 5.99.9 compiled successfully in 1268 ms
+webpack 5.99.9 compiled successfully in 1290 ms
+assets by status 1.98 KiB [cached] 1 asset
+assets by path *.js 1.51 MiB
+  asset bundle.js 1.45 MiB [emitted] (name: main)
+  asset main.f104191dc060d53d1bd7.hot-update.js 64.8 KiB [emitted] [immutable] [hmr] (name: main)
+asset main.f104191dc060d53d1bd7.hot-update.json 28 bytes [emitted] [immutable] [hmr]
+Entrypoint main 1.51 MiB = bundle.js 1.45 MiB main.f104191dc060d53d1bd7.hot-update.js 64.8 KiB
+cached modules 1.26 MiB [cached] 41 modules
+runtime modules 27.5 KiB 14 modules
+./src/App.js 51.2 KiB [built] [code generated]
+webpack 5.99.9 compiled successfully in 431 ms

@@ -1342,29 +1342,60 @@ function PersonalityQuizScreen({ onComplete }) {
   );
 }
 
-// PUBLIC_INTERFACE
+/**
+ * PUBLIC_INTERFACE
+ * App's main routing and user personality context logic.
+ * After signup and quiz, user's "persona" result is available for savings suggestion.
+ */
+const PersonaContext = React.createContext(null);
+
+function analyzePersona(quizAnswers) {
+  // Analysis logic: Tally results to produce 1 main persona string (modular, customizable)
+  if (!quizAnswers) return null;
+  // Count frequency of each selected personality tag
+  const tally = {};
+  Object.values(quizAnswers).forEach(q => {
+    tally[q] = (tally[q] || 0) + 1;
+  });
+  // Sorted list, most frequent persona comes first; fallback is 'Balanced'
+  const personas = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+  return personas.length > 0 ? personas[0][0] : "Balanced";
+}
+
 function App() {
   // Global state for onboarding flow: steps - SignUp -> Quiz -> Dashboard
-  const [onboarding, setOnboarding] = useState(() => {
-    // Can use localStorage, but demo will not persist sessions
-    return { step: "signup", user: null, quiz: null };
-  });
+  const [onboarding, setOnboarding] = useState(() => ({
+    step: "signup", user: null, quiz: null
+  }));
 
+  /** Onboarding and quiz logic **/
   function handleSignUp(userProfile) {
     setOnboarding({ step: "quiz", user: userProfile, quiz: null });
   }
   function handleQuizComplete(quizAnswers) {
-    setOnboarding(prev => ({ ...prev, step: "dashboard", quiz: quizAnswers }));
+    setOnboarding(prev => ({
+      ...prev, step: "dashboard", quiz: quizAnswers
+    }));
   }
 
+  // Determine persona from quiz for use across the app
+  const persona = analyzePersona(onboarding.quiz);
+
+  // Route user in onboarding
   if (onboarding.step === "signup") {
     return <SignUpScreen onComplete={handleSignUp} />;
   }
   if (onboarding.step === "quiz") {
     return <PersonalityQuizScreen onComplete={handleQuizComplete} />;
   }
-  // step === "dashboard"
-  return <GoalSaverDashboard />;
+
+  // Provide persona to dashboard and children via context
+  return (
+    <PersonaContext.Provider value={persona}>
+      <GoalSaverDashboard persona={persona} />
+    </PersonaContext.Provider>
+  );
 }
 
+export { PersonaContext }; // allow consumption by modular panels
 export default App;

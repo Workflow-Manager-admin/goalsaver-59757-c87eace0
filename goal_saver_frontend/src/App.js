@@ -137,6 +137,271 @@ function useReminderNotifications(goals, preferences) {
   return reminders;
 }
 
+/**
+ * SmartPlanningPanel (AI-Powered Smart Planning)
+ * Allows user to enter income, expenses, lifestyle info.
+ * Uses local heuristics to suggest an adaptive savings plan and categorizes expenses.
+ * NOTE: In a real app, AI/ML API call would be made here for richer personalization.
+ */
+function SmartPlanningPanel({ goals, colors = COLORS }) {
+  const [income, setIncome] = useState("");
+  const [expenses, setExpenses] = useState([{ category: "Rent", value: "" }]);
+  const [lifestyle, setLifestyle] = useState("Frugal");
+  const [urgency, setUrgency] = useState("Normal");
+  const [suggestion, setSuggestion] = useState(null);
+
+  // For available categories and lifestyles, can be extended
+  const expenseCategories = [
+    "Rent/Housing", "Food & Groceries", "Transport", "Utilities", "Shopping", "Entertainment", "Health", "Other"
+  ];
+  const lifestyleOptions = [
+    { label: "Frugal", multiplier: 0.15 },
+    { label: "Balanced", multiplier: 0.12 },
+    { label: "Comfort", multiplier: 0.08 }
+  ];
+  const urgencyLevels = [
+    { label: "Very High", multiplier: 1.20 },
+    { label: "High", multiplier: 1.10 },
+    { label: "Normal", multiplier: 1.0 },
+    { label: "Low", multiplier: 0.8 }
+  ];
+
+  function handleExpenseChange(idx, field, value) {
+    setExpenses((prev) => prev.map((e, i) =>
+      i === idx ? { ...e, [field]: value } : e
+    ));
+  }
+
+  function addExpenseRow() {
+    setExpenses((prev) => [...prev, { category: "", value: "" }]);
+  }
+
+  function removeExpenseRow(idx) {
+    setExpenses((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  // PUBLIC_INTERFACE
+  function handlePlanSuggestion(e) {
+    e.preventDefault();
+    // Calculate total expenses
+    const totalExpenses = expenses.reduce((sum, curr) => {
+      const val = parseFloat(curr.value);
+      return sum + (isNaN(val) ? 0 : val);
+    }, 0);
+
+    const inc = parseFloat(income);
+    if (isNaN(inc) || inc <= 0) {
+      setSuggestion({ error: "Please enter a valid income amount." });
+      return;
+    }
+    // Select lifestyle & urgency multipliers
+    const lifestyleObj = lifestyleOptions.find(l => l.label === lifestyle) || lifestyleOptions[0];
+    const urgencyObj = urgencyLevels.find(u => u.label === urgency) || urgencyLevels[2];
+    // Local "AI" logic: use multipliers and urgency to suggest savings percent of free income after expenses
+    const saveBase = Math.max(0, inc - totalExpenses);
+    let proposedSaving = Math.round(saveBase * lifestyleObj.multiplier * urgencyObj.multiplier);
+    if (proposedSaving < 0) proposedSaving = 0;
+
+    // Categorize spending for feedback
+    const biggest = expenses
+      .map((e) => ({ ...e, value: parseFloat(e.value) || 0 }))
+      .filter(e => e.category)
+      .sort((a, b) => b.value - a.value)[0];
+
+    let notes = [];
+    if (biggest && biggest.value > 0) {
+      notes.push(`Your largest spending is for "${biggest.category}" (₹${biggest.value}). Consider ways to reduce it if possible.`);
+    }
+    if (saveBase <= 0) {
+      notes.push("Your total expenses meet or exceed your income. Try to optimize your spending.");
+    }
+    if (proposedSaving === 0) {
+      notes.push("Little or no savings are possible with the current inputs — review expenses.");
+    }
+
+    // Goal urgency suggestion
+    let urgentGoal = null;
+    if (goals && goals.length > 0) {
+      const now = new Date();
+      urgentGoal = goals
+        .map(g => ({
+          ...g,
+          deadlineObj: g.deadline ? new Date(g.deadline) : null
+        }))
+        .filter(g => g.deadlineObj)
+        .sort((a, b) => a.deadlineObj - b.deadlineObj)[0];
+    }
+
+    setSuggestion({
+      income: inc,
+      totalExpenses,
+      saveBase,
+      proposedSaving,
+      notes,
+      urgentGoal,
+      lifestyle: lifestyleObj.label,
+      urgency: urgencyObj.label
+    });
+    // NOTE: In production, this is where an API call for AI-powered recommendation would occur.
+    // Example:
+    // fetch('/api/ai-smart-planner', {method:"POST",body:JSON.stringify({ income, expenses, lifestyle, urgency, goals })})
+    //   .then(resp => resp.json()).then(setSuggestion);
+  }
+
+  return (
+    <div
+      style={{
+        margin: "38px 0 24px",
+        background: colors.card,
+        borderRadius: 13,
+        padding: "22px 27px 21px",
+        boxShadow: "0 2px 17px 0 #dbe8ff36",
+        maxWidth: 600,
+      }}>
+      <div style={{ fontWeight: 700, color: colors.primary, marginBottom: 5, fontSize: 20 }}>
+        🧠 AI-Powered Smart Planning
+      </div>
+      <div style={{ color: "#4a556b", fontSize: 15, marginBottom: 13, lineHeight: 1.4 }}>
+        Get a custom savings plan suggestion based on your finances and lifestyle.
+        <span style={{ color: "#787f97" }}><br />(No data leaves your device. Real AI can be connected in production.)</span>
+      </div>
+      <form onSubmit={handlePlanSuggestion}>
+        <div style={{ marginBottom: 9 }}>
+          <label style={{ fontWeight: 500 }}>
+            Monthly Income (₹):{" "}
+            <input
+              type="number"
+              value={income}
+              min={0}
+              placeholder="e.g., 15000"
+              onChange={e => setIncome(e.target.value)}
+              style={{ width: 110, marginLeft: 5, fontSize: 15 }}
+              required
+            />
+          </label>
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          Expenses:
+          {expenses.map((exp, idx) => (
+            <div key={idx} style={{ display: "flex", alignItems: "center", marginBottom: 3 }}>
+              <select
+                value={exp.category}
+                onChange={e => handleExpenseChange(idx, "category", e.target.value)}
+                style={{ fontSize: 15, marginRight: 7 }}>
+                <option value="">Select Category</option>
+                {expenseCategories.map(cat =>
+                  <option value={cat} key={cat}>{cat}</option>
+                )}
+              </select>
+              <input
+                type="number"
+                value={exp.value}
+                min={0}
+                placeholder="₹"
+                onChange={e => handleExpenseChange(idx, "value", e.target.value)}
+                style={{ width: 80, marginLeft: 3, fontSize: 15 }}
+                required
+              />
+              <button type="button" onClick={() => removeExpenseRow(idx)}
+                style={{
+                  marginLeft: 4, background: "#eee", color: "#555", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 700
+                }}
+                disabled={expenses.length <= 1}
+                title="Remove expense"
+              >−</button>
+            </div>
+          ))}
+          <button type="button" onClick={addExpenseRow}
+            style={{
+              fontSize: 14, background: colors.secondary, color: "#633c00", border: "none",
+              marginTop: 2, borderRadius: 8, padding: "1.5px 9px", marginLeft: 2, fontWeight: 500
+            }}
+          >+ Add Expense</button>
+        </div>
+        <div style={{ margin: "7px 0", display: "flex", gap: 25 }}>
+          <label style={{ fontWeight: 500 }}>
+            Lifestyle:{" "}
+            <select
+              value={lifestyle}
+              onChange={e => setLifestyle(e.target.value)}
+              style={{ fontSize: 15, marginLeft: 3 }}
+            >
+              {lifestyleOptions.map(opt =>
+                <option key={opt.label} value={opt.label}>{opt.label}</option>
+              )}
+            </select>
+          </label>
+          <label style={{ fontWeight: 500 }}>
+            Goals Urgency:{" "}
+            <select
+              value={urgency}
+              onChange={e => setUrgency(e.target.value)}
+              style={{ fontSize: 15, marginLeft: 3 }}
+            >
+              {urgencyLevels.map(opt =>
+                <option key={opt.label} value={opt.label}>{opt.label}</option>
+              )}
+            </select>
+          </label>
+        </div>
+        <button type="submit" className="btn" style={{
+          background: colors.primary, color: "#fff", fontWeight: 600, marginTop: 14, fontSize: 16
+        }}>Get Plan Suggestion</button>
+      </form>
+      {suggestion && (
+        <div style={{
+          marginTop: 20,
+          background: "#e6f6ec",
+          borderRadius: 10,
+          padding: "12px 16px",
+          color: "#184d30",
+          fontSize: 15,
+          boxShadow: "0 1px 9px 0 #f4fff3a6"
+        }}>
+          {suggestion.error ?
+            <span style={{ color: "#d23535" }}>{suggestion.error}</span>
+            : (
+              <div>
+                <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 17 }}>
+                  {`Suggested monthly savings: ₹${suggestion.proposedSaving}`}
+                  <span style={{ color: "#295bb1", fontWeight: 600, fontSize: 15, marginLeft: 7 }}>
+                    ({suggestion.lifestyle}, Goal Urgency: {suggestion.urgency})
+                  </span>
+                </div>
+                <div>
+                  {suggestion.saveBase <= 0
+                    ? <span>Your income is fully or over-spent on expenses.</span>
+                    : (
+                      <span>
+                        You can save about <b>{Math.round((suggestion.proposedSaving / Math.max(1, suggestion.income)) * 100)}%</b> of your income monthly.
+                        {/* If goals are present, mention the most urgent goal */}
+                        {suggestion.urgentGoal &&
+                          <span> Your most urgent goal: <b>{suggestion.urgentGoal.name}</b> (Deadline: {suggestion.urgentGoal.deadline})</span>
+                        }
+                      </span>
+                    )}
+                </div>
+                {suggestion.notes && suggestion.notes.length > 0 &&
+                  <ul style={{ marginTop: 6, color: "#25554e" }}>
+                    {suggestion.notes.map((n, i) => (
+                      <li key={i}>{n}</li>
+                    ))}
+                  </ul>
+                }
+                <div style={{ marginTop: 4, color: "#87898f", fontSize: 13 }}>
+                  <span>
+                    {/* Annotation about real AI integration */}
+                    <i>{`(In real use, this step can call an AI/ML service/api for deeper analysis and smart suggestions per user profile.)`}</i>
+                  </span>
+                </div>
+              </div>
+            )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // MAIN CONTAINER
 
 const COLORS = {
@@ -222,6 +487,7 @@ function GoalSaverDashboard() {
     <div style={{ background: COLORS.bg, minHeight: "100vh" }}>
       <Navbar />
       <div style={{ maxWidth: 1050, margin: "auto", padding: "32px 0 48px" }}>
+        <SmartPlanningPanel goals={goals} colors={COLORS} />
         <h2
           style={{
             color: COLORS.primary,
